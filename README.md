@@ -27,7 +27,7 @@ Before running the server, you must set the following environment variables (you
 
 Then run the server with ./lcpencrypt
 
-### Encrypting Packages
+### Encrypting Files
 
 You can send a multipart form POST requests to the /upload endpoint with the following properties
 
