@@ -1,5 +1,5 @@
 # lcpencryptserver
-A simple Go http server alternative for the lcpencrypt tool.
+A simple Go http server alternative for the lcpencrypt tool bundled with the Readium  LCP Server.
 
 ## Installation
 
