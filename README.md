@@ -19,10 +19,10 @@ go build lcpencryptserver.go
 
 Before running the server, you must set the following environment variables (you can use a .env file in the same folder as well);
 
-- LCP_SERVER_URL
-- LCP_SERVER_LOGIN
-- LCP_SERVER_PASSWORD
-- STORAGE_PATH
+- LCP_SERVER_URL (Full URL of your LCP Server, including port number)
+- LCP_SERVER_LOGIN (Login for LCP Server)
+- LCP_SERVER_PASSWORD (Password for LCP Server)
+- STORAGE_PATH (Path for encryption operations)
 - LISTEN_PORT (optional, defaults to 8992)
 
 Then run the server with ./lcpencrypt
