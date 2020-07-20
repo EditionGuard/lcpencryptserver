@@ -105,16 +105,18 @@ func UploadFile(w http.ResponseWriter, r *http.Request) {
     outputPath := os.Getenv("STORAGE_PATH") + "/" + contentid
 
     ext := filepath.Ext(path)
+    extension := ".epub"
 
     // Epub file encrypted directly.
     if ext == ".epub" {
-      log.Print("Encrypting epub")
-      outputPath += ".epub"
+      outputPath += extension
+      log.Print("Encrypting ePub with path " + outputPath)
       encryptionArtifact, encryptionError = encrypt.EncryptEpub(path, outputPath)
     // PDF File needs to be built as web pub first, then encrypted.
     } else {
-      log.Print("Encrypting pdf")
-      outputPath += ".lcpdf"
+      extension = ".lcpdf"
+      outputPath += extension
+      log.Print("Encrypting PDF with path " + outputPath)
       lcpPublication.ContentType = "application/pdf+lcp"
       err := pack.BuildWebPubPackageFromPDF(filepath.Base(path), path, path + ".webpub")
   		if err != nil {
@@ -129,21 +131,20 @@ func UploadFile(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    basefilename := filepath.Base(encryptionArtifact.Path)
     lcpPublication.ContentKey = encryptionArtifact.EncryptionKey
-    lcpPublication.Output = outputPath
+    lcpPublication.Output = encryptionArtifact.Path
     lcpPublication.Size = &encryptionArtifact.Size
     lcpPublication.Checksum = &encryptionArtifact.Checksum
-
-    basefilename := filepath.Base(outputPath)
     lcpPublication.ContentDisposition = &basefilename
 
-    err = notifyLcpServer(os.Getenv("LCP_SERVER_URL"), contentid, lcpPublication, os.Getenv("LCP_SERVER_LOGIN"), os.Getenv("LCP_SERVER_PASSWORD"))
+    resp, err := notifyLcpServer(os.Getenv("LCP_SERVER_URL"), contentid, lcpPublication, os.Getenv("LCP_SERVER_LOGIN"), os.Getenv("LCP_SERVER_PASSWORD"))
 		if err != nil {
 			lcpPublication.ErrorMessage = "Error notifying the License Server"
 			http.Error(w, err.Error(), http.StatusInternalServerError)
       return
 		} else {
-			log.Print("License Server was notified\n")
+			log.Print("License Server was notified with status " + resp.Status)
 		}
 
     encryptResult, err := json.Marshal(lcpPublication)
@@ -152,7 +153,7 @@ func UploadFile(w http.ResponseWriter, r *http.Request) {
     w.Write(encryptResult)
 }
 
-func notifyLcpServer(lcpService string, contentid string, lcpPublication apilcp.LcpPublication, username string, password string) error {
+func notifyLcpServer(lcpService string, contentid string, lcpPublication apilcp.LcpPublication, username string, password string) (*http.Response, error) {
 	//exchange encryption key with lcp service/content/<id>,
 	//Payload:
 	//  content-id: unique id for the content
@@ -170,21 +171,21 @@ func notifyLcpServer(lcpService string, contentid string, lcpPublication apilcp.
 
 	jsonBody, err := json.Marshal(lcpPublication)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req, err := http.NewRequest("PUT", urlBuffer.String(), bytes.NewReader(jsonBody))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.SetBasicAuth(username, password)
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if (resp.StatusCode != 302) && (resp.StatusCode/100) != 2 { //302=found or 20x reply = OK
-		return fmt.Errorf("lcp server error %d", resp.StatusCode)
+		return nil, fmt.Errorf("lcp server error %d", resp.StatusCode)
 	}
 
-	return nil
+	return resp, nil
 }
