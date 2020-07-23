@@ -3,11 +3,12 @@ package main
 import  (
 "io"
 "os"
+"os/exec"
 "net/http"
 "github.com/joho/godotenv"
 "github.com/gorilla/mux"
 "log"
-uuid "github.com/satori/go.uuid"
+"bytes"
 )
 
 func main() {
@@ -22,7 +23,7 @@ func main() {
       port = "8992"
     }
 
-    requiredVars := []string{"LCP_SERVER_URL","LCP_SERVER_LOGIN","LCP_SERVER_PASSWORD","STORAGE_PATH"}
+    requiredVars := []string{"LCP_SERVER_URL","LCP_SERVER_LOGIN","LCP_SERVER_PASSWORD","STORAGE_PATH","LCP_ENCRYPT_PATH"}
     for _, varName := range requiredVars {
       _, exists := os.LookupEnv(varName)
       if(!exists) {
@@ -64,8 +65,6 @@ func UploadFile(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    contentid := r.PostFormValue("contentid")
-
     defer file.Close()
 
     path := os.Getenv("STORAGE_PATH") + "/" + header.Filename
@@ -78,19 +77,29 @@ func UploadFile(w http.ResponseWriter, r *http.Request) {
     defer f.Close()
     io.Copy(f, file)
 
-    log.Print("Request received for file " + header.Filename)
+    // TODO: Call executable with received file, then place response into encryptResult
+    lcpencrypt := os.Getenv("LCP_ENCRYPT_PATH")
+    args := []string{lcpencrypt, "-input", path, "-lcpsv", os.Getenv("LCP_SERVER_URL"), "-login", os.Getenv("LCP_SERVER_LOGIN"), "-password", os.Getenv("LCP_SERVER_PASSWORD")}
+    contentid := r.PostFormValue("contentid")
     if contentid == "" {
-  		uid, err := uuid.NewV4()
-      if err != nil {
-          http.Error(w, err.Error(), http.StatusInternalServerError)
-          return
-      }
-  		contentid = uid.String()
-      log.Print("No contentid was given, using new id " + contentid)
+      log.Print("Creating new publication as no contentid was provided.")
+    } else {
+      args = append(args, "-contentid", contentid)
     }
 
-    // TODO: Call executable with received file, then place response into encryptResult
-    encryptResult := []byte("")
+    var buffer bytes.Buffer
+    cmd := &exec.Cmd {
+        Path: lcpencrypt,
+        Args: args,
+        Stdout: &buffer,
+        Stderr: &buffer,
+    }
+
+    // run `go version` command
+    if err := cmd.Run(); err != nil {
+        log.Print( "Encrypt Command Execution Error:", err );
+    }
+    encryptResult := buffer.Bytes()
     log.Print("Response sent: " + string(encryptResult))
     w.Write(encryptResult)
 }
