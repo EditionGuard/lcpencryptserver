@@ -9,6 +9,7 @@ import  (
 "github.com/gorilla/mux"
 "log"
 "bytes"
+uuid "github.com/satori/go.uuid"
 )
 
 func main() {
@@ -78,14 +79,19 @@ func UploadFile(w http.ResponseWriter, r *http.Request) {
     io.Copy(f, file)
 
     // TODO: Call executable with received file, then place response into encryptResult
-    lcpencrypt := os.Getenv("LCP_ENCRYPT_PATH")
-    args := []string{lcpencrypt, "-input", path, "-lcpsv", os.Getenv("LCP_SERVER_URL"), "-login", os.Getenv("LCP_SERVER_LOGIN"), "-password", os.Getenv("LCP_SERVER_PASSWORD")}
     contentid := r.PostFormValue("contentid")
     if contentid == "" {
-      log.Print("Creating new publication as no contentid was provided.")
-    } else {
-      args = append(args, "-contentid", contentid)
+  		uid, err := uuid.NewV4()
+      if err != nil {
+          http.Error(w, err.Error(), http.StatusInternalServerError)
+          return
+      }
+  		contentid = uid.String()
+      log.Print("No contentid was given, using new id " + contentid)
     }
+    outputPath := os.Getenv("STORAGE_PATH") + "/" + contentid
+    lcpencrypt := os.Getenv("LCP_ENCRYPT_PATH")
+    args := []string{lcpencrypt, "-input", path, "-output", outputPath, "-lcpsv", os.Getenv("LCP_SERVER_URL"), "-login", os.Getenv("LCP_SERVER_LOGIN"), "-password", os.Getenv("LCP_SERVER_PASSWORD"), "-contentid", contentid}
 
     var buffer bytes.Buffer
     cmd := &exec.Cmd {
