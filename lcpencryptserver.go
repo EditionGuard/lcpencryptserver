@@ -9,6 +9,8 @@ import  (
 "github.com/gorilla/mux"
 "log"
 "bytes"
+"fmt"
+"strings"
 uuid "github.com/satori/go.uuid"
 )
 
@@ -91,7 +93,7 @@ func UploadFile(w http.ResponseWriter, r *http.Request) {
     }
     outputPath := os.Getenv("STORAGE_PATH") + "/" + contentid
     lcpencrypt := os.Getenv("LCP_ENCRYPT_PATH")
-    args := []string{lcpencrypt, "-input", path, "-output", outputPath, "-lcpsv", os.Getenv("LCP_SERVER_URL"), "-login", os.Getenv("LCP_SERVER_LOGIN"), "-password", os.Getenv("LCP_SERVER_PASSWORD"), "-contentid", contentid}
+    args := []string{lcpencrypt, "-input", path, "-lcpsv", os.Getenv("LCP_SERVER_URL"), "-login", os.Getenv("LCP_SERVER_LOGIN"), "-password", os.Getenv("LCP_SERVER_PASSWORD"), "-output", outputPath, "-contentid", contentid}
 
     var buffer bytes.Buffer
     cmd := &exec.Cmd {
@@ -101,11 +103,17 @@ func UploadFile(w http.ResponseWriter, r *http.Request) {
         Stderr: &buffer,
     }
 
-    // run `go version` command
+    encryptResult := ""
     if err := cmd.Run(); err != nil {
-        log.Print( "Encrypt Command Execution Error:", err );
+        bufferString := strings.ReplaceAll(string(buffer.Bytes()), "\n", " - ")
+        log.Print( "Encrypt Command Execution Error:", err);
+        encryptResult = fmt.Sprintf("{ \"error\": \"%v\", \"detail\": \"%v\" }", err, bufferString)
+        w.WriteHeader(500)
+    } else {
+        bufferString := string(buffer.Bytes())
+        encryptResult = strings.SplitAfter(bufferString, "}")[0]
+        log.Print( "Encrypt Command Execution Successful", encryptResult);
     }
-    encryptResult := buffer.Bytes()
     log.Print("Response sent: " + string(encryptResult))
-    w.Write(encryptResult)
+    w.Write([]byte(encryptResult))
 }
